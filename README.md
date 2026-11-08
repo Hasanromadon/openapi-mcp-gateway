@@ -6,6 +6,7 @@
 *Instantly convert any REST API / OpenAPI spec into production-ready AI Agent Tools.*
 
 [![MCP](https://img.shields.io/badge/MCP-Model_Context_Protocol-58A6FF?style=flat-square&logo=anthropic&logoColor=white)](https://modelcontextprotocol.io)
+[![CI](https://github.com/Hasanromadon/openapi-mcp-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/Hasanromadon/openapi-mcp-gateway/actions)
 [![Glama Inspector](https://img.shields.io/badge/Tested_with-Glama_Inspector-7C3AED?style=flat-square)](https://glama.ai/mcp/inspector)
 [![BI-SNAP](https://img.shields.io/badge/Security-BI--SNAP_HMAC--SHA512-238636?style=flat-square)](samples/bi-snap-banking.yaml)
 [![FinOps](https://img.shields.io/badge/Optimization-FinOps_Token_Trimmer-0D74CE?style=flat-square)](#-finops-token-cost-optimization)

@@ -23,6 +23,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "test": "tsx --test tests/*.test.ts",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "demo:banking": "tsx src/index.ts --spec samples/bi-snap-banking.yaml --port 3000 --mock --bisnap",
