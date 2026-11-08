@@ -13,6 +13,9 @@ paths:
   /v1.0/balance-inquiry:
     post:
       operationId: getAccountBalance
+      tags:
+        - accounts
+        - inquiry
       summary: Check Account Balance (BI-SNAP)
       description: Retrieve available and ledger balance for a customer bank account.
       parameters:
@@ -85,6 +88,9 @@ paths:
   /v1.0/transfer-interbank:
     post:
       operationId: transferInterbankFunds
+      tags:
+        - transfers
+        - payments
       summary: Interbank Real-time Transfer (BI-FAST / BI-SNAP)
       description: Execute real-time fund transfer between different bank accounts.
       requestBody:
@@ -149,6 +155,9 @@ paths:
   /v1.0/bank-statement:
     post:
       operationId: getAccountStatement
+      tags:
+        - accounts
+        - statements
       summary: Historical Bank Account Statement
       description: Inquire statement history of debits and credits for an account.
       requestBody:

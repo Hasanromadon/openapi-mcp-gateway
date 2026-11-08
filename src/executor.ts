@@ -1,19 +1,51 @@
 import axios from 'axios';
-import { ParsedTool, GatewayConfig } from './types.js';
+import crypto from 'node:crypto';
+import { ParsedTool, GatewayConfig, AuditLogEvent } from './types.js';
+import { signBiSnapRequest } from './security/bisnap.js';
+import { trimPayload } from './finops.js';
 
 export async function executeToolCall(
   tool: ParsedTool,
   args: Record<string, any>,
   config: GatewayConfig
 ): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
+  const startTime = Date.now();
+  const traceId = crypto.randomUUID();
+
   // If Mock mode is enabled, generate an intelligent mock response
   if (config.mock) {
     const mockData = generateMockResponse(tool, args);
+    const durationMs = Date.now() - startTime;
+
+    logAuditEvent({
+      traceId,
+      timestamp: new Date().toISOString(),
+      tool: tool.name,
+      method: tool.method,
+      path: tool.path,
+      durationMs,
+      status: 'SUCCESS',
+      statusCode: 200,
+      mock: true,
+    }, config);
+
+    const { data: optimizedData, estimatedTokensSaved } = trimPayload(
+      mockData,
+      config.maxArrayItems || 10
+    );
+
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(mockData, null, 2),
+          text: JSON.stringify(
+            {
+              ...optimizedData,
+              _audit: { traceId, durationMs: `${durationMs}ms`, estimatedTokensSaved },
+            },
+            null,
+            2
+          ),
         },
       ],
     };
@@ -23,7 +55,7 @@ export async function executeToolCall(
   let targetUrl = `${baseUrl.replace(/\/$/, '')}${tool.path}`;
 
   const queryParams: Record<string, any> = {};
-  const headers: Record<string, string> = {
+  let headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(config.defaultHeaders || {}),
   };
@@ -54,6 +86,12 @@ export async function executeToolCall(
     }
   }
 
+  // Feature: Automatic BI-SNAP Cryptographic Signing
+  if (config.biSnap?.enabled) {
+    const snapHeaders = signBiSnapRequest(tool.method, tool.path, bodyData, config.biSnap);
+    headers = { ...headers, ...snapHeaders };
+  }
+
   try {
     const response = await axios({
       method: tool.method,
@@ -61,8 +99,30 @@ export async function executeToolCall(
       params: queryParams,
       headers,
       data: Object.keys(bodyData).length > 0 ? bodyData : undefined,
-      validateStatus: () => true, // Don't throw on 4xx/5xx to capture full payload
+      validateStatus: () => true, // Capture all HTTP codes without throwing
+      timeout: 10000,
     });
+
+    const durationMs = Date.now() - startTime;
+    const isSuccess = response.status >= 200 && response.status < 300;
+
+    logAuditEvent({
+      traceId,
+      timestamp: new Date().toISOString(),
+      tool: tool.name,
+      method: tool.method,
+      path: tool.path,
+      durationMs,
+      status: isSuccess ? 'SUCCESS' : 'ERROR',
+      statusCode: response.status,
+      mock: false,
+    }, config);
+
+    // FinOps response trimming
+    const { data: optimizedData, estimatedTokensSaved } = trimPayload(
+      response.data,
+      config.maxArrayItems || 10
+    );
 
     return {
       content: [
@@ -72,8 +132,12 @@ export async function executeToolCall(
             {
               status: response.status,
               statusText: response.statusText,
-              headers: response.headers,
-              data: response.data,
+              data: optimizedData,
+              _audit: {
+                traceId,
+                durationMs: `${durationMs}ms`,
+                estimatedTokensSaved,
+              },
             },
             null,
             2
@@ -82,6 +146,20 @@ export async function executeToolCall(
       ],
     };
   } catch (error: any) {
+    const durationMs = Date.now() - startTime;
+
+    logAuditEvent({
+      traceId,
+      timestamp: new Date().toISOString(),
+      tool: tool.name,
+      method: tool.method,
+      path: tool.path,
+      durationMs,
+      status: 'ERROR',
+      errorMessage: error.message,
+      mock: false,
+    }, config);
+
     return {
       content: [
         {
@@ -91,6 +169,8 @@ export async function executeToolCall(
               error: true,
               message: error.message || 'Failed to dispatch request to upstream API',
               url: targetUrl,
+              traceId,
+              durationMs: `${durationMs}ms`,
             },
             null,
             2
@@ -98,6 +178,15 @@ export async function executeToolCall(
         },
       ],
     };
+  }
+}
+
+function logAuditEvent(event: AuditLogEvent, config: GatewayConfig) {
+  if (config.auditLog !== false) {
+    const icon = event.status === 'SUCCESS' ? '🟢' : '🔴';
+    console.log(
+      `${icon} [AUDIT] [${event.traceId.slice(0, 8)}] ${event.method} ${event.path} -> ${event.status} (${event.durationMs}ms, HTTP ${event.statusCode || 'N/A'}${event.mock ? ', MOCK' : ''})`
+    );
   }
 }
 
@@ -139,7 +228,10 @@ function buildMockFromSchema(schema: any): any {
   }
 
   if (schema.type === 'array') {
-    return [buildMockFromSchema(schema.items || {})];
+    return [
+      buildMockFromSchema(schema.items || {}),
+      buildMockFromSchema(schema.items || {}),
+    ];
   }
 
   if (schema.type === 'number' || schema.type === 'integer') {

@@ -1,4 +1,4 @@
-import { OpenAPISpec, ParsedTool, ParsedToolParameter } from './types.js';
+import { OpenAPISpec, ParsedTool, ParsedToolParameter, GatewayConfig } from './types.js';
 
 const HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch'] as const;
 
@@ -10,11 +10,30 @@ export function sanitizeToolName(raw: string): string {
   return sanitized.slice(0, 64) || 'tool';
 }
 
-export function convertOpenApiToMcpTools(spec: OpenAPISpec): ParsedTool[] {
+function matchesPattern(str: string, pattern: string): boolean {
+  if (pattern.endsWith('*')) {
+    const prefix = pattern.slice(0, -1);
+    return str.startsWith(prefix);
+  }
+  return str === pattern;
+}
+
+export function convertOpenApiToMcpTools(spec: OpenAPISpec, config?: GatewayConfig): ParsedTool[] {
   const tools: ParsedTool[] = [];
 
   for (const [rawPath, pathItem] of Object.entries(spec.paths)) {
     if (!pathItem || typeof pathItem !== 'object') continue;
+
+    // Check excludePaths filter
+    if (config?.excludePaths && config.excludePaths.some((p) => matchesPattern(rawPath, p))) {
+      continue;
+    }
+
+    // Check includePaths filter
+    if (config?.includePaths && config.includePaths.length > 0) {
+      const isIncluded = config.includePaths.some((p) => matchesPattern(rawPath, p));
+      if (!isIncluded) continue;
+    }
 
     const commonParams: ParsedToolParameter[] = Array.isArray(pathItem.parameters)
       ? pathItem.parameters.map(normalizeParameter)
@@ -23,6 +42,14 @@ export function convertOpenApiToMcpTools(spec: OpenAPISpec): ParsedTool[] {
     for (const method of HTTP_METHODS) {
       const operation = pathItem[method];
       if (!operation || typeof operation !== 'object') continue;
+
+      const tags: string[] = Array.isArray(operation.tags) ? operation.tags : [];
+
+      // Check includeTags filter
+      if (config?.includeTags && config.includeTags.length > 0) {
+        const hasTag = tags.some((t) => config.includeTags!.includes(t));
+        if (!hasTag) continue;
+      }
 
       const opParams: ParsedToolParameter[] = Array.isArray(operation.parameters)
         ? operation.parameters.map(normalizeParameter)
@@ -37,6 +64,7 @@ export function convertOpenApiToMcpTools(spec: OpenAPISpec): ParsedTool[] {
       const description = [
         operation.summary || `${method.toUpperCase()} ${rawPath}`,
         operation.description ? `\n\n${operation.description}` : '',
+        tags.length > 0 ? `\n\n[Tags: ${tags.join(', ')}]` : '',
         `\n\n[Endpoint: ${method.toUpperCase()} ${rawPath}]`,
       ]
         .join('')
@@ -66,7 +94,6 @@ export function convertOpenApiToMcpTools(spec: OpenAPISpec): ParsedTool[] {
 
         if (requestBodySchema.type === 'object' && requestBodySchema.properties) {
           for (const [propName, propSchema] of Object.entries(requestBodySchema.properties)) {
-            // Avoid clashing with existing path/query params
             const finalPropName = properties[propName] ? `body_${propName}` : propName;
             properties[finalPropName] = propSchema;
           }
@@ -96,6 +123,7 @@ export function convertOpenApiToMcpTools(spec: OpenAPISpec): ParsedTool[] {
         description,
         method: method.toUpperCase(),
         path: rawPath,
+        tags,
         parameters: allParams,
         requestBodySchema,
         inputSchema: {

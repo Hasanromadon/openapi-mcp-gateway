@@ -12,9 +12,10 @@ import {
 import { OpenAPISpec, ParsedTool, GatewayConfig } from './types.js';
 import { convertOpenApiToMcpTools } from './converter.js';
 import { executeToolCall } from './executor.js';
+import { renderPlaygroundHtml } from './ui/playground.js';
 
 export function createMcpServer(spec: OpenAPISpec, config: GatewayConfig) {
-  const tools: ParsedTool[] = convertOpenApiToMcpTools(spec);
+  const tools: ParsedTool[] = convertOpenApiToMcpTools(spec, config);
   const toolMap = new Map<string, ParsedTool>(tools.map((t) => [t.name, t]));
 
   const server = new Server(
@@ -64,6 +65,7 @@ export async function runSseServer(spec: OpenAPISpec, config: GatewayConfig) {
   app.use(express.json());
 
   const { server, tools } = createMcpServer(spec, config);
+  const toolMap = new Map<string, ParsedTool>(tools.map((t) => [t.name, t]));
   let transport: SSEServerTransport | null = null;
 
   // SSE endpoint for Glama Inspector
@@ -86,17 +88,47 @@ export async function runSseServer(spec: OpenAPISpec, config: GatewayConfig) {
     await transport.handlePostMessage(req, res);
   });
 
-  // Health check & Info endpoint
-  app.get('/', (_req, res) => {
+  // API endpoint for interactive playground execution
+  app.post('/api/tools/execute', async (req, res) => {
+    const { name, arguments: args } = req.body;
+    const tool = toolMap.get(name);
+    if (!tool) {
+      res.status(404).json({ error: `Tool not found: ${name}` });
+      return;
+    }
+    try {
+      const result = await executeToolCall(tool, args || {}, config);
+      res.json(JSON.parse(result.content[0].text));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Interactive Web Playground & Dashboard
+  app.get('/playground', (_req, res) => {
+    res.setHeader('Content-Type', 'text/html');
+    res.send(renderPlaygroundHtml(spec, tools, config));
+  });
+
+  // Root endpoint: HTML if browser, JSON if API client
+  app.get('/', (req, res) => {
+    if (req.headers.accept?.includes('text/html')) {
+      res.setHeader('Content-Type', 'text/html');
+      res.send(renderPlaygroundHtml(spec, tools, config));
+      return;
+    }
+
     res.json({
       name: 'openapi-mcp-gateway',
       author: 'Hasan Romadon',
       title: spec.info.title,
       version: spec.info.version,
       mockMode: !!config.mock,
+      biSnapEnabled: !!config.biSnap?.enabled,
       toolsCount: tools.length,
-      tools: tools.map((t) => ({ name: t.name, method: t.method, path: t.path })),
+      tools: tools.map((t) => ({ name: t.name, method: t.method, path: t.path, tags: t.tags })),
       sseEndpoint: `http://localhost:${port}/sse`,
+      playgroundUrl: `http://localhost:${port}/playground`,
       glamaInspectorUrl: `https://glama.ai/mcp/inspector`,
     });
   });
@@ -108,11 +140,17 @@ export async function runSseServer(spec: OpenAPISpec, config: GatewayConfig) {
       console.log(`📂 Spec: ${spec.info.title} (v${spec.info.version})`);
       console.log(`🛠️ Converted Tools: ${tools.length} MCP tools generated`);
       console.log(`🔌 Mode: ${config.mock ? 'Mock / Sandbox (Auto-generates responses)' : 'Live API Proxy'}`);
-      console.log(`🌐 Server URL: http://localhost:${port}`);
+      if (config.biSnap?.enabled) {
+        console.log(`🔐 Security: BI-SNAP Dynamic HMAC-SHA512 Signature Active`);
+      }
+      if (config.includeTags?.length) {
+        console.log(`🏷️ Tags Filter: [${config.includeTags.join(', ')}]`);
+      }
+      console.log(`🌐 Web Playground: http://localhost:${port}/playground`);
       console.log(`📡 SSE Endpoint: http://localhost:${port}/sse`);
       console.log('\n🔍 How to test in Glama Inspector:');
       console.log(`   1. Open https://glama.ai/mcp/inspector`);
-      console.log(`   2. In Server URL, enter your SSE address (e.g. via ngrok/localtunnel or public URL)`);
+      console.log(`   2. In Server URL, enter your SSE address (e.g. via ngrok/localtunnel)`);
       console.log(`   3. Click Connect & inspect all converted tools!`);
       console.log('=============================================================\n');
       resolve();

@@ -7,6 +7,8 @@
 
 [![MCP](https://img.shields.io/badge/MCP-Model_Context_Protocol-58A6FF?style=flat-square&logo=anthropic&logoColor=white)](https://modelcontextprotocol.io)
 [![Glama Inspector](https://img.shields.io/badge/Tested_with-Glama_Inspector-7C3AED?style=flat-square)](https://glama.ai/mcp/inspector)
+[![BI-SNAP](https://img.shields.io/badge/Security-BI--SNAP_HMAC--SHA512-238636?style=flat-square)](samples/bi-snap-banking.yaml)
+[![FinOps](https://img.shields.io/badge/Optimization-FinOps_Token_Trimmer-0D74CE?style=flat-square)](#-finops-token-cost-optimization)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 [![Author](https://img.shields.io/badge/Author-Hasan_Romadon-000000?style=flat-square)](https://github.com/Hasanromadon)
@@ -23,23 +25,53 @@ Enterprises, banks, and fintech organizations have thousands of established REST
 
 However, autonomous AI agents (Claude, Cursor, OpenAI Agents, custom LLMs) communicate via the **Model Context Protocol (MCP)**. Manually wrapping each endpoint into an MCP tool is tedious, error-prone, and unmaintainable.
 
-**OpenAPI-to-MCP Gateway** solves this problem by serving as an intelligent adapter:
+**OpenAPI-to-MCP Gateway** acts as a production-grade adapter:
 1. **Parses** any OpenAPI 3.0/3.1 document or Swagger URL.
-2. **Generates** MCP-compliant Tool schemas on the fly.
-3. **Exposes** an **SSE (Server-Sent Events)** endpoint ready for **[Glama MCP Inspector](https://glama.ai/mcp/inspector)** and remote agents.
-4. **Proxies** tool executions directly to your backend or simulates realistic responses in **Mock Sandbox Mode**.
+2. **Eliminates Tool Bloat** with intelligent Tag & Path Whitelisting so your LLM context window doesn't get flooded.
+3. **Automates BI-SNAP Cryptographic Signatures** (HMAC-SHA512 & ISO timestamps).
+4. **Trims Large Payloads** via built-in FinOps optimizations to save up to 80% on LLM token costs.
+5. **Provides a Local Web Playground (`/playground`)** alongside **[Glama MCP Inspector](https://glama.ai/mcp/inspector)** remote SSE support.
 
 ---
 
-## ✨ Features
+## ✨ Enterprise & Critical Features
 
-- 🔄 **Zero-Code Conversion**: Feed any JSON/YAML OpenAPI spec and get MCP tools automatically.
-- 📡 **Dual Transports**:
-  - **SSE / HTTP**: Built for web-based inspectors like [Glama Inspector](https://glama.ai/mcp/inspector), cloud deployments, and remote AI agents.
-  - **Stdio**: Native integration for **Claude Desktop**, **Cursor**, and local CLI agent workflows.
-- 🧪 **Mock Sandbox Engine**: Test your tools in Glama Inspector immediately without needing a live backend database. Generates realistic payloads compliant with the response schemas.
-- 🏦 **Enterprise & Banking Ready**: Includes samples for **Bank Indonesia Open Banking (BI-SNAP)** and **Corporate Cash Management System (CMS)**.
-- 🔐 **Security & Header Passthrough**: Supports Bearer tokens, API Keys, and custom headers (e.g., `X-PARTNER-ID`, `X-SIGNATURE`).
+### 1. 🛡️ Tool Filtering & Anti-Hallucination (Solves Tool Bloat)
+Enterprises with hundreds of endpoints risk overflowing the LLM context window. Filter down to only what your AI agent needs:
+```bash
+# Only convert endpoints tagged with "accounts" or "payments"
+node dist/index.js --spec api.yaml --tags accounts,payments
+
+# Include only balance and statement endpoints
+node dist/index.js --spec api.yaml --include "/v1.0/balance*,/v1.0/statement*"
+
+# Exclude internal / admin paths
+node dist/index.js --spec api.yaml --exclude "/internal/*,/admin/*"
+```
+
+### 2. 🔐 Automated BI-SNAP HMAC-SHA512 Security Hook
+Complies with Bank Indonesia National Open Banking API Standard (**BI-SNAP**). When enabled, every outgoing request is automatically signed with:
+- `X-TIMESTAMP`: ISO 8601 millisecond-precision timestamp.
+- `X-SIGNATURE`: `Base64(HMAC-SHA512(Method + ":" + Path + ":" + SHA256(Body) + ":" + Timestamp, SecretKey))`
+- `X-PARTNER-ID`, `X-EXTERNAL-ID`, and `CHANNEL-ID`.
+```bash
+node dist/index.js --spec samples/bi-snap-banking.yaml --bisnap --bisnap-secret "your-secret-key"
+```
+
+### 3. 💰 FinOps Token Cost Optimization
+Large JSON responses (e.g. 100+ transaction rows) can blow up LLM token costs. The gateway automatically:
+- Truncates oversized arrays past `--max-items` (default: 10 items) and inserts truncation notices.
+- Strips null and redundant fields.
+- Tracks and outputs `estimatedTokensSaved` per tool call.
+
+### 4. 📊 Structured Audit Trail & Observability
+Every execution emits an audit event for banking compliance:
+```
+🟢 [AUDIT] [0c5d7b66] POST /v1.0/balance-inquiry -> SUCCESS (1ms, HTTP 200, MOCK)
+```
+
+### 5. 🖥️ Built-in Interactive Web Playground (`/playground`)
+Open `http://localhost:3000/playground` to inspect converted schemas and execute live test calls directly in your browser.
 
 ---
 
@@ -57,36 +89,14 @@ npm run build
 ### 2. Run with Sample Banking Spec (BI-SNAP)
 
 ```bash
-# Run in Mock mode on port 3000
+# Starts gateway on port 3000 in Mock Sandbox Mode with BI-SNAP signing active
 npm run demo:banking
-```
-
-Output:
-```
-=============================================================
-🚀 OpenAPI-to-MCP Gateway is running!
-📂 Spec: Bank Indonesia Fast & Open API (BI-SNAP) (v1.0.0)
-🛠️ Converted Tools: 3 MCP tools generated
-🔌 Mode: Mock / Sandbox (Auto-generates responses)
-🌐 Server URL: http://localhost:3000
-📡 SSE Endpoint: http://localhost:3000/sse
-=============================================================
 ```
 
 ### 3. Run with Corporate Cash Management Spec
 
 ```bash
 npm run demo:cash-management
-```
-
-### 4. Run with Your Own OpenAPI Spec or URL
-
-```bash
-# Local YAML/JSON spec
-node dist/index.js --spec /path/to/your-api.yaml --port 3000 --mock
-
-# Remote URL spec against live backend
-node dist/index.js --spec https://petstore.swagger.io/v2/swagger.json --base-url https://petstore.swagger.io/v2 --port 3000
 ```
 
 ---
@@ -97,7 +107,7 @@ node dist/index.js --spec https://petstore.swagger.io/v2/swagger.json --base-url
 
 ### Step-by-Step:
 
-1. **Expose your local gateway** (if testing from browser):
+1. **Expose your local gateway**:
    ```bash
    npx localtunnel --port 3000
    # or
@@ -106,18 +116,13 @@ node dist/index.js --spec https://petstore.swagger.io/v2/swagger.json --base-url
 2. **Open Glama Inspector**:
    Navigate to [glama.ai/mcp/inspector](https://glama.ai/mcp/inspector).
 3. **Connect**:
-   - In the **Server URL** input, enter your public SSE URL:
-     ```
-     https://your-tunnel-url.loca.lt/sse
-     ```
-   - Click **Connect**.
-4. **Inspect & Execute**:
-   - View your converted operations (`getAccountBalance`, `transferInterbankFunds`, etc.).
-   - Execute tool calls with custom test inputs and inspect real-time responses!
+   Enter your public SSE URL (e.g., `https://your-tunnel.loca.lt/sse`) and click **Connect**.
+4. **Execute**:
+   Test converted tools (`getAccountBalance`, `transferInterbankFunds`) and view real-time responses!
 
 ---
 
-## 💻 Connecting to Claude Desktop
+## 💻 Connecting to Claude Desktop / Cursor
 
 Add this gateway to your Claude Desktop configuration (`claude_desktop_config.json`):
 
@@ -137,36 +142,6 @@ Add this gateway to your Claude Desktop configuration (`claude_desktop_config.js
     }
   }
 }
-```
-
----
-
-## 🏗️ Architecture
-
-```
-┌────────────────────────────────┐         ┌──────────────────────────────┐
-│  OpenAPI Spec / Swagger        │         │   Glama MCP Inspector        │
-│  (BI-SNAP, Axway, REST APIs)   │         │   Claude Desktop / Cursor    │
-└───────────────┬────────────────┘         └──────────────┬───────────────┘
-                │                                         │
-                ▼                                         ▼
-   ┌─────────────────────────────────────────────────────────────┐
-   │                  OpenAPI-to-MCP Gateway                     │
-   │                                                             │
-   │  ┌───────────────┐     ┌──────────────┐     ┌────────────┐  │
-   │  │ OpenAPI Parser│ ──> │ Tool Builder │ ──> │ MCP Server │  │
-   │  └───────────────┘     └──────────────┘     └─────┬──────┘  │
-   │                                                   │         │
-   │  ┌───────────────────────┐                        ▼         │
-   │  │ Mock Response Engine  │ <── Tool Call ── [ SSE / Stdio ] │
-   │  └───────────────────────┘                                  │
-   └───────────────────────────┬─────────────────────────────────┘
-                               │ (Live Mode)
-                               ▼
-                 ┌───────────────────────────┐
-                 │ Upstream Enterprise APIs  │
-                 │ (Axway, Core Banking, CMS)│
-                 └───────────────────────────┘
 ```
 
 ---
