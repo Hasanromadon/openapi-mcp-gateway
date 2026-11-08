@@ -35,12 +35,19 @@ export interface ParsedTool {
   method: string;
   path: string;
   tags: string[];
+  annotations: {
+    readOnlyHint: boolean;
+    destructiveHint: boolean;
+    idempotentHint: boolean;
+    openWorldHint: boolean;
+  };
   parameters: ParsedToolParameter[];
   requestBodySchema?: any;
   inputSchema: {
     type: 'object';
     properties: Record<string, any>;
     required?: string[];
+    additionalProperties?: boolean;
   };
   responses?: Record<string, any>;
 }
@@ -56,10 +63,12 @@ export interface GatewayConfig {
   specPathOrUrl: string;
   baseUrl?: string;
   port?: number;
-  transport?: 'sse' | 'stdio';
+  transport?: 'sse' | 'streamable-http' | 'stdio';
   mock?: boolean;
   defaultHeaders?: Record<string, string>;
   apiKey?: string;
+  mcpAuthToken?: string;
+  allowedUpstreamHosts?: string[];
   // Feature 1: Filter & Whitelist
   includeTags?: string[];
   includePaths?: string[];

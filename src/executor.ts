@@ -52,6 +52,20 @@ export async function executeToolCall(
   }
 
   const baseUrl = config.baseUrl || 'http://localhost:8080';
+  let upstreamHost: string;
+  try {
+    const parsedBaseUrl = new URL(baseUrl);
+    upstreamHost = parsedBaseUrl.hostname.toLowerCase();
+    const isLoopback = ['localhost', '127.0.0.1', '::1'].includes(upstreamHost);
+    if (parsedBaseUrl.protocol !== 'https:' && !(parsedBaseUrl.protocol === 'http:' && isLoopback)) {
+      throw new Error('BASE_URL must use HTTPS, except for localhost development.');
+    }
+  } catch {
+    throw new Error('BASE_URL must be a valid HTTPS URL (HTTP is allowed only for localhost development).');
+  }
+  if (!config.allowedUpstreamHosts?.includes(upstreamHost)) {
+    throw new Error(`Upstream host "${upstreamHost}" is not in ALLOWED_UPSTREAM_HOSTS.`);
+  }
   let targetUrl = `${baseUrl.replace(/\/$/, '')}${tool.path}`;
 
   const queryParams: Record<string, any> = {};
@@ -101,6 +115,7 @@ export async function executeToolCall(
       data: Object.keys(bodyData).length > 0 ? bodyData : undefined,
       validateStatus: () => true, // Capture all HTTP codes without throwing
       timeout: 10000,
+      maxRedirects: 0,
     });
 
     const durationMs = Date.now() - startTime;

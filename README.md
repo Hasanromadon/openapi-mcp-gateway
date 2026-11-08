@@ -56,7 +56,10 @@ Complies with Bank Indonesia National Open Banking API Standard (**BI-SNAP**). W
 - `X-SIGNATURE`: `Base64(HMAC-SHA512(Method + ":" + Path + ":" + SHA256(Body) + ":" + Timestamp, SecretKey))`
 - `X-PARTNER-ID`, `X-EXTERNAL-ID`, and `CHANNEL-ID`.
 ```bash
-node dist/index.js --spec samples/bi-snap-banking.yaml --bisnap --bisnap-secret "your-secret-key"
+node dist/index.js --spec samples/bi-snap-banking.yaml --bisnap \
+  --bisnap-secret "$BISNAP_SECRET" \
+  --bisnap-partner "$BISNAP_PARTNER_ID" \
+  --bisnap-channel "$BISNAP_CHANNEL_ID"
 ```
 
 ### 3. 💰 FinOps Token Cost Optimization
@@ -99,6 +102,23 @@ npm run demo:banking
 ```bash
 npm run demo:cash-management
 ```
+
+## 🌐 Glama Directory and Deployment
+
+This repository includes a [`glama.json`](glama.json) that identifies the GitHub maintainer for Glama. Submit the repository from [Glama's MCP servers page](https://glama.ai/mcp/servers) while signed in with an account that can write to this repository. Glama builds and inspects open-source servers from their GitHub repository; the Glama Inspector instructions below are for testing a running server and do not submit it to the directory.
+
+The Docker image starts the included BI-SNAP sample in **mock mode** over Streamable HTTP by default, so it does not call a real banking API. Build and run it locally with:
+
+```bash
+docker build -t openapi-mcp-gateway .
+docker run --rm -p 3000:3000 openapi-mcp-gateway
+```
+
+The Streamable HTTP MCP endpoint is `http://localhost:3000/mcp`; `/health` provides a health check. The default `/mcp` transport is stateless and creates a fresh MCP server per request. The legacy SSE endpoint (`/sse` and `/messages`) remains available with `--transport sse`, and stdio remains available with `--transport stdio`. The web playground is available in SSE mode at `/playground`.
+
+Configure deployments with environment variables: `SPEC` (OpenAPI file path or URL), `PORT`, `TRANSPORT` (`streamable-http`, `sse`, or `stdio`), `MOCK` (`true` or `false`), `BASE_URL`, `API_KEY`, `ALLOWED_UPSTREAM_HOSTS` (comma-separated exact hostnames, required when `MOCK=false`), `MCP_AUTH_TOKEN` (optional bearer token protecting HTTP MCP and execution routes), `BISNAP` (`true` or `false`), `BISNAP_SECRET`, `BISNAP_PARTNER_ID`, and `BISNAP_CHANNEL_ID`. Enabling BI-SNAP signing requires all three BI-SNAP values; the gateway will not fall back to demo credentials. Command-line options override these defaults. Live mode accepts HTTPS upstreams; plain HTTP is allowed only for localhost development. Redirects from the upstream API are disabled so requests cannot escape the configured host allowlist. HTTP routes are rate-limited to 120 requests per minute per client IP. Store credentials in the deployment's secret manager and avoid putting them in public images or repositories.
+
+Glama's hosted remote connectors require a reachable HTTPS Streamable HTTP endpoint. The local Docker command above exposes HTTP on port 3000; deploy it behind an HTTPS endpoint before submitting it as a hosted connector. Listing this source repository and hosting a remote connector are separate Glama workflows.
 
 ---
 

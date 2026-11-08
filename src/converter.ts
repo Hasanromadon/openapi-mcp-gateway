@@ -20,6 +20,7 @@ function matchesPattern(str: string, pattern: string): boolean {
 
 export function convertOpenApiToMcpTools(spec: OpenAPISpec, config?: GatewayConfig): ParsedTool[] {
   const tools: ParsedTool[] = [];
+  const usedNames = new Set<string>();
 
   for (const [rawPath, pathItem] of Object.entries(spec.paths)) {
     if (!pathItem || typeof pathItem !== 'object') continue;
@@ -56,16 +57,41 @@ export function convertOpenApiToMcpTools(spec: OpenAPISpec, config?: GatewayConf
         : [];
 
       const allParams = [...commonParams, ...opParams];
+      const declaredAnnotations = operation['x-mcp-annotations'] || {};
+      const readOnlyHint = typeof declaredAnnotations.readOnlyHint === 'boolean'
+        ? declaredAnnotations.readOnlyHint
+        : method === 'get';
+      const annotations = {
+        readOnlyHint,
+        destructiveHint: typeof declaredAnnotations.destructiveHint === 'boolean'
+          ? declaredAnnotations.destructiveHint
+          : !readOnlyHint && ['post', 'put', 'patch', 'delete'].includes(method),
+        idempotentHint: typeof declaredAnnotations.idempotentHint === 'boolean'
+          ? declaredAnnotations.idempotentHint
+          : ['get', 'put', 'delete'].includes(method),
+        openWorldHint: typeof declaredAnnotations.openWorldHint === 'boolean'
+          ? declaredAnnotations.openWorldHint
+          : true,
+      };
 
       // Generate a descriptive, clean tool name
       const nameCandidate = operation.operationId || `${method}_${rawPath.replace(/[\/{}]/g, '_')}`;
-      const name = sanitizeToolName(nameCandidate);
+      const baseName = sanitizeToolName(nameCandidate);
+      let name = baseName;
+      let suffix = 2;
+      while (usedNames.has(name)) name = `${baseName.slice(0, 58)}_${suffix++}`;
+      usedNames.add(name);
 
       const description = [
         operation.summary || `${method.toUpperCase()} ${rawPath}`,
         operation.description ? `\n\n${operation.description}` : '',
         tags.length > 0 ? `\n\n[Tags: ${tags.join(', ')}]` : '',
         `\n\n[Endpoint: ${method.toUpperCase()} ${rawPath}]`,
+        annotations.readOnlyHint
+          ? '\n\nReads data from the upstream API; use when this information is needed.'
+          : annotations.destructiveHint
+            ? '\n\nSends a request to the upstream API and may change or remove remote data. Call only when the user has requested this operation; verify important inputs before calling.'
+            : '\n\nSends an additive request to the upstream API. Call only when the user has requested this operation and verify important inputs before calling.',
       ]
         .join('')
         .trim();
@@ -76,10 +102,9 @@ export function convertOpenApiToMcpTools(spec: OpenAPISpec, config?: GatewayConf
 
       for (const param of allParams) {
         properties[param.name] = {
+          ...param.schema,
           type: param.schema?.type || 'string',
           description: param.description || `Parameter in ${param.in}`,
-          ...(param.schema?.enum ? { enum: param.schema.enum } : {}),
-          ...(param.schema?.default !== undefined ? { default: param.schema.default } : {}),
         };
 
         if (param.required || param.in === 'path') {
@@ -93,14 +118,16 @@ export function convertOpenApiToMcpTools(spec: OpenAPISpec, config?: GatewayConf
         requestBodySchema = operation.requestBody.content['application/json'].schema;
 
         if (requestBodySchema.type === 'object' && requestBodySchema.properties) {
+          const bodyPropertyNames = new Map<string, string>();
           for (const [propName, propSchema] of Object.entries(requestBodySchema.properties)) {
             const finalPropName = properties[propName] ? `body_${propName}` : propName;
             properties[finalPropName] = propSchema;
+            bodyPropertyNames.set(propName, finalPropName);
           }
 
           if (Array.isArray(requestBodySchema.required)) {
             for (const reqProp of requestBodySchema.required) {
-              const finalReqName = properties[reqProp] ? reqProp : `body_${reqProp}`;
+              const finalReqName = bodyPropertyNames.get(reqProp) || reqProp;
               if (!required.includes(finalReqName)) {
                 required.push(finalReqName);
               }
@@ -124,11 +151,13 @@ export function convertOpenApiToMcpTools(spec: OpenAPISpec, config?: GatewayConf
         method: method.toUpperCase(),
         path: rawPath,
         tags,
+        annotations,
         parameters: allParams,
         requestBodySchema,
         inputSchema: {
           type: 'object',
           properties,
+          additionalProperties: false,
           ...(required.length > 0 ? { required } : {}),
         },
         responses: operation.responses,

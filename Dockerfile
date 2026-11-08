@@ -17,6 +17,7 @@ EXPOSE 3000
 
 ENV PORT=3000
 ENV SPEC=samples/bi-snap-banking.yaml
+ENV MOCK=true
 
 ENTRYPOINT ["node", "dist/index.js"]
-CMD ["--spec", "samples/bi-snap-banking.yaml", "--port", "3000", "--mock"]
+CMD ["--transport", "streamable-http"]

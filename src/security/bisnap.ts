@@ -7,11 +7,21 @@ export function signBiSnapRequest(
   bodyData: any,
   config: BiSnapSecurityConfig
 ): Record<string, string> {
+  if (!config.clientSecret) {
+    throw new Error('BI-SNAP signing requires BISNAP_SECRET (client secret).');
+  }
+  if (!config.partnerId) {
+    throw new Error('BI-SNAP signing requires BISNAP_PARTNER_ID.');
+  }
+  if (!config.channelId) {
+    throw new Error('BI-SNAP signing requires BISNAP_CHANNEL_ID.');
+  }
+
   const timestamp = new Date().toISOString();
-  const partnerId = config.partnerId || 'PARTNER-DEMO-001';
-  const clientSecret = config.clientSecret || 'secret-key-12345';
+  const partnerId = config.partnerId;
+  const clientSecret = config.clientSecret;
   const externalId = Date.now().toString() + Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  const channelId = config.channelId || '95051';
+  const channelId = config.channelId;
 
   // 1. Minify & SHA-256 hash the body (lowercase hex)
   let bodyHash = '';
