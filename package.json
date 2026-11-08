@@ -1,18 +1,32 @@
 {
   "name": "openapi-mcp-gateway",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "Enterprise OpenAPI v3 & Swagger to Model Context Protocol (MCP) Gateway. Turn any REST API into AI Tools with SSE & Glama Inspector support.",
   "main": "dist/index.js",
   "bin": {
     "openapi-mcp-gateway": "dist/index.js"
   },
+  "files": [
+    "dist",
+    "samples",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hasanromadon/openapi-mcp-gateway.git"
+  },
+  "homepage": "https://github.com/Hasanromadon/openapi-mcp-gateway#readme",
+  "bugs": {
+    "url": "https://github.com/Hasanromadon/openapi-mcp-gateway/issues"
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "demo:banking": "tsx src/index.ts --spec samples/bi-snap-banking.yaml --port 3001 --mock",
-    "demo:cash-management": "tsx src/index.ts --spec samples/cash-management-api.json --port 3001 --mock"
+    "demo:banking": "tsx src/index.ts --spec samples/bi-snap-banking.yaml --port 3000 --mock --bisnap",
+    "demo:cash-management": "tsx src/index.ts --spec samples/cash-management-api.json --port 3000 --mock"
   },
   "keywords": [
     "mcp",
@@ -23,6 +37,7 @@
     "ai-agent",
     "banking",
     "bi-snap",
+    "finops",
     "glama-inspector"
   ],
   "author": "Hasan Romadon <hasanromadon@gmail.com> (https://github.com/Hasanromadon)",
