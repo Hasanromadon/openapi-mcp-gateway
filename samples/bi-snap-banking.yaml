@@ -1,0 +1,190 @@
+openapi: 3.0.3
+info:
+  title: Bank Indonesia Fast & Open API (BI-SNAP)
+  version: 1.0.0
+  description: >-
+    National Open API standard for Indonesian Banking & Financial Services (BI-SNAP).
+    Includes Balance Inquiry, Bank Statement, and Interbank Fund Transfer.
+servers:
+  - url: https://api.sandbox.bank.id/bi-snap
+    description: BI-SNAP Sandbox Gateway
+
+paths:
+  /v1.0/balance-inquiry:
+    post:
+      operationId: getAccountBalance
+      summary: Check Account Balance (BI-SNAP)
+      description: Retrieve available and ledger balance for a customer bank account.
+      parameters:
+        - name: X-PARTNER-ID
+          in: header
+          required: true
+          schema:
+            type: string
+          example: PARTNER123
+        - name: X-SIGNATURE
+          in: header
+          required: false
+          schema:
+            type: string
+          example: 9a8b7c6d5e4f...
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - partnerReferenceNo
+                - accountNo
+              properties:
+                partnerReferenceNo:
+                  type: string
+                  description: Unique client transaction reference
+                  example: REF-20261109-001
+                accountNo:
+                  type: string
+                  description: Bank account number to inquire
+                  example: '1029384756'
+      responses:
+        '200':
+          description: Successful balance inquiry
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  responseCode:
+                    type: string
+                    example: '2001100'
+                  responseMessage:
+                    type: string
+                    example: Successful
+                  partnerReferenceNo:
+                    type: string
+                    example: REF-20261109-001
+                  referenceNo:
+                    type: string
+                    example: BANK-TX-8839201
+                  accountNo:
+                    type: string
+                    example: '1029384756'
+                  name:
+                    type: string
+                    example: HASAN ROMADON
+                  amount:
+                    type: object
+                    properties:
+                      value:
+                        type: string
+                        example: '1500000000.00'
+                      currency:
+                        type: string
+                        example: IDR
+
+  /v1.0/transfer-interbank:
+    post:
+      operationId: transferInterbankFunds
+      summary: Interbank Real-time Transfer (BI-FAST / BI-SNAP)
+      description: Execute real-time fund transfer between different bank accounts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - partnerReferenceNo
+                - sourceAccountNo
+                - beneficiaryAccountNo
+                - beneficiaryBankCode
+                - amount
+              properties:
+                partnerReferenceNo:
+                  type: string
+                  example: TRF-20261109-992
+                sourceAccountNo:
+                  type: string
+                  example: '1029384756'
+                beneficiaryAccountNo:
+                  type: string
+                  example: '9876543210'
+                beneficiaryBankCode:
+                  type: string
+                  description: Central Bank 3-digit bank code
+                  example: '014'
+                amount:
+                  type: object
+                  required:
+                    - value
+                    - currency
+                  properties:
+                    value:
+                      type: string
+                      example: '50000000.00'
+                    currency:
+                      type: string
+                      example: IDR
+                remark:
+                  type: string
+                  example: Corporate Vendor Payment
+      responses:
+        '200':
+          description: Successful transfer execution
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  responseCode:
+                    type: string
+                    example: '2001800'
+                  responseMessage:
+                    type: string
+                    example: Successful Transfer
+                  referenceNo:
+                    type: string
+                    example: BIF-20261109-88319
+
+  /v1.0/bank-statement:
+    post:
+      operationId: getAccountStatement
+      summary: Historical Bank Account Statement
+      description: Inquire statement history of debits and credits for an account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - accountNo
+                - fromDateTime
+                - toDateTime
+              properties:
+                accountNo:
+                  type: string
+                  example: '1029384756'
+                fromDateTime:
+                  type: string
+                  example: '2026-11-01T00:00:00+07:00'
+                toDateTime:
+                  type: string
+                  example: '2026-11-08T23:59:59+07:00'
+      responses:
+        '200':
+          description: Statement records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  responseCode:
+                    type: string
+                    example: '2001400'
+                  responseMessage:
+                    type: string
+                    example: Successful
+                  totalRecords:
+                    type: integer
+                    example: 24

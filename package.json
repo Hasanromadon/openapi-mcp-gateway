@@ -1,0 +1,47 @@
+{
+  "name": "openapi-mcp-gateway",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Enterprise OpenAPI v3 & Swagger to Model Context Protocol (MCP) Gateway. Turn any REST API into AI Tools with SSE & Glama Inspector support.",
+  "main": "dist/index.js",
+  "bin": {
+    "openapi-mcp-gateway": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "demo:banking": "tsx src/index.ts --spec samples/bi-snap-banking.yaml --port 3001 --mock",
+    "demo:cash-management": "tsx src/index.ts --spec samples/cash-management-api.json --port 3001 --mock"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "openapi",
+    "swagger",
+    "gateway",
+    "ai-agent",
+    "banking",
+    "bi-snap",
+    "glama-inspector"
+  ],
+  "author": "Hasan Romadon <hasanromadon@gmail.com> (https://github.com/Hasanromadon)",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "axios": "^1.7.9",
+    "commander": "^13.1.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "js-yaml": "^4.1.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.13.9",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}

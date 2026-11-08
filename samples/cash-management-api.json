@@ -1,0 +1,106 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Corporate Cash Management System (CMS)",
+    "version": "2.1.0",
+    "description": "Enterprise Corporate Cash Management API for Bulk Payroll, Liquidity Sweeping, and Real-time Treasury Ledger."
+  },
+  "servers": [
+    {
+      "url": "https://cms.enterprise.bank/api/v1",
+      "description": "Production Axway Gateway"
+    }
+  ],
+  "paths": {
+    "/corporate/bulk-payroll": {
+      "post": {
+        "operationId": "disburseBulkPayroll",
+        "summary": "Execute Corporate Bulk Payroll Disbursement",
+        "description": "Disburse salary to multiple employee accounts with automated reconciliation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["batchId", "corporateId", "totalAmount", "beneficiaries"],
+                "properties": {
+                  "batchId": { "type": "string", "example": "PAYROLL-2026-11" },
+                  "corporateId": { "type": "string", "example": "CORP-ASESME-001" },
+                  "totalAmount": { "type": "number", "example": 250000000 },
+                  "beneficiaries": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "employeeId": { "type": "string", "example": "EMP-001" },
+                        "accountNo": { "type": "string", "example": "1029384756" },
+                        "amount": { "type": "number", "example": 15000000 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Batch accepted for clearing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "BATCH_QUEUED" },
+                    "batchReferenceNo": { "type": "string", "example": "CMS-PAY-9921" },
+                    "processedCount": { "type": "integer", "example": 45 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/corporate/liquidity-sweep": {
+      "post": {
+        "operationId": "executeLiquiditySweep",
+        "summary": "Multi-Account Liquidity Sweeping",
+        "description": "Sweep end-of-day balances from subsidiary accounts into the central corporate treasury pool.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["poolId", "targetMasterAccount"],
+                "properties": {
+                  "poolId": { "type": "string", "example": "POOL-ASESME-PRIMARY" },
+                  "targetMasterAccount": { "type": "string", "example": "9988776655" },
+                  "sweepThreshold": { "type": "number", "example": 10000000 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sweep executed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sweepStatus": { "type": "string", "example": "COMPLETED" },
+                    "totalSweptAmount": { "type": "number", "example": 420000000 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
